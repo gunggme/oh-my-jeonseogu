@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { main } from "@mariozechner/pi-coding-agent";
 import { EnvHttpProxyAgent, setGlobalDispatcher } from "undici";
 import { mapArgs } from "./args.js";
+import { jeonseoguBanner } from "./banner.js";
 
 // Same preamble as pi's own cli.js: long provider streams must not hit
 // undici's default body timeouts, and HTTP(S)_PROXY should be honored.
@@ -28,7 +29,7 @@ async function run(argv: string[]): Promise<void> {
 		args.push("--system-prompt", persona);
 	}
 	args.push(...mapped.rest);
-	await main(args, {});
+	await main(args, { extensionFactories: [jeonseoguBanner] });
 }
 
 run(process.argv.slice(2)).catch((e) => {

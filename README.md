@@ -29,6 +29,9 @@ jeonseogu                  # pi TUI가 페르소나로 열림
 jeonseogu "전서구야 뭐해"   # 한 번만 답하고 종료 (pi --print와 동일)
 ```
 
+실행하면 pi의 기본 헤더 대신 OH-MY JEONSEOGU 블록 타이포와 비둘기 ASCII 아트가 뜬다
+(`src/banner.ts`에서 확장 팩토리로 헤더를 교체). `--print` 등 비대화 모드에서는 안 뜬다.
+
 모든 pi 플래그가 그대로 통한다 (`--model`, `-c/--continue`, `--no-session`,
 `--thinking`, `-e <path>` 등). `jeonseogu --help`는 pi의 도움말과 같다.
 
