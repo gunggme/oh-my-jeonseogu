@@ -123,6 +123,8 @@ export const USAGE = [
 	"  -v, --version          show version",
 	"",
 	"In chat:",
+	"  /login      log in with OAuth or an API key (/login <provider>)",
+	"  /logout     remove stored credentials (/logout <provider>)",
 	"  /new        reset the conversation",
 	"  /model      show current model; /model <spec> to switch",
 	"  /models     list models with credentials configured",

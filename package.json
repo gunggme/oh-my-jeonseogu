@@ -4,6 +4,14 @@
   "description": "전서구 말투에서 영감을 받은, pi 기반의 장난스러운 대화 CLI",
   "type": "module",
   "license": "MIT",
+  "author": "gunggme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gunggme/oh-my-jeonseogu.git"
+  },
+  "bugs": "https://github.com/gunggme/oh-my-jeonseogu/issues",
+  "homepage": "https://github.com/gunggme/oh-my-jeonseogu#readme",
+  "keywords": ["cli", "chat", "llm", "pi", "jeonseogu"],
   "bin": {
     "oh-my-jeonseogu": "dist/cli.js",
     "jeonseogu": "dist/cli.js"

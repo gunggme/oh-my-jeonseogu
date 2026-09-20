@@ -107,3 +107,8 @@ export async function createChatSession(opts: ChatSessionOptions): Promise<ChatS
 export function defaultSessionDir(cwd: string): string {
 	return join(cwd, ".jeonseogu", "sessions");
 }
+
+/** pi falls back to an "unknown/unknown" placeholder when no model is configured. */
+export function isRealModel(model: Model<Api> | undefined): model is Model<Api> {
+	return !!model && !(model.provider === "unknown" && model.id === "unknown");
+}

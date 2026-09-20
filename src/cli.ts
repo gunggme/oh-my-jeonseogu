@@ -4,8 +4,9 @@ import * as readline from "node:readline";
 import type { ThinkingLevel } from "@mariozechner/pi-agent-core";
 import { AuthStorage, ModelRegistry, type AgentSession } from "@mariozechner/pi-coding-agent";
 import { parseArgv, USAGE } from "./args.js";
+import { afterAuth, apiKeyLogin, oauthLogin } from "./login.js";
 import { ChatPrinter } from "./printer.js";
-import { createChatSession, defaultSessionDir, loadSystemPrompt, resolveModel } from "./session.js";
+import { createChatSession, defaultSessionDir, isRealModel, loadSystemPrompt, resolveModel } from "./session.js";
 import { MessageSplitter } from "./splitter.js";
 
 const DIM = "\x1b[2m";
@@ -40,8 +41,9 @@ function readStdin(): Promise<string> {
 
 const NO_KEY_HINT = [
 	"사용 가능한 모델이 없음. API 키가 필요하다:",
+	"  대화 모드에서 /login 실행 (OAuth: anthropic, github-copilot, openai-codex)",
 	"  ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY 등을 환경변수로 설정하거나",
-	"  pi CLI로 로그인해서 ~/.pi/agent/auth.json 을 채우면 됨",
+	"  pi CLI로 로그인해도 됨 (같은 ~/.pi/agent/auth.json 을 공유함)",
 ].join("\n");
 
 async function main(): Promise<void> {
@@ -88,21 +90,19 @@ async function main(): Promise<void> {
 	const registry = ModelRegistry.create(authStorage);
 
 	const model = resolveModel(registry, opts.model);
-	if (!model) {
+	const wantsOneShot = opts.print !== undefined || opts.message !== undefined || !process.stdin.isTTY;
+	if (!model && (opts.model !== undefined || wantsOneShot)) {
 		if (opts.model) {
 			err("모델을 못 찾음: " + opts.model);
 			const avail = registry.getAvailable();
 			if (avail.length > 0) {
 				err("사용 가능: " + avail.map((m) => m.provider + "/" + m.id).join(", "));
-			} else {
-				err(NO_KEY_HINT);
 			}
-		} else {
-			err(NO_KEY_HINT);
 		}
+		err(NO_KEY_HINT);
 		process.exit(1);
 	}
-	if (opts.model && !registry.hasConfiguredAuth(model)) {
+	if (opts.model && model && !registry.hasConfiguredAuth(model)) {
 		err("모델은 있는데 자격증명이 없음: " + model.provider + "/" + model.id);
 		err(NO_KEY_HINT);
 		process.exit(1);
@@ -143,7 +143,7 @@ async function main(): Promise<void> {
 
 	const modelLabel = () => {
 		const m = session.model;
-		return m ? m.provider + "/" + m.id : "none";
+		return isRealModel(m) ? m.provider + "/" + m.id : "none";
 	};
 
 	// One-shot: positional message, -p flag, or piped stdin.
@@ -177,7 +177,27 @@ async function main(): Promise<void> {
 	});
 	rl.prompt();
 
+	if (!model) {
+		printer.note(NO_KEY_HINT);
+	}
+
+	const NORMAL_PROMPT = CYAN + "\u203a " + RESET;
+	// When set, the next input line answers a login prompt instead of starting a chat.
+	let awaiting: { resolve: (v: string) => void; reject: (e: Error) => void } | null = null;
+	const askLine = async (question: string): Promise<string> => {
+		await printer.drain(); // flush queued notes before showing the prompt
+		return new Promise((resolve, reject) => {
+			awaiting = { resolve, reject };
+			rl.setPrompt(question);
+			rl.prompt();
+		});
+	};
+
 	const runPrompt = async (text: string): Promise<void> => {
+		if (!isRealModel(session.model)) {
+			printer.error("아직 로그인 안 됨. /login 먼저 하셈");
+			return;
+		}
 		if (session.isStreaming) {
 			await session.followUp(text);
 			printer.note("(답변 끝나면 이어서 전달)");
@@ -245,6 +265,61 @@ async function main(): Promise<void> {
 				printerOpts.delays = !printerOpts.delays;
 				printer.note("딜레이 " + (printerOpts.delays ? "켬" : "끔"));
 				break;
+			case "/login": {
+				const spec = rest.join(" ").trim().toLowerCase();
+				const oauthProviders = authStorage.getOAuthProviders();
+				if (!spec) {
+					printer.note(
+						"OAuth 로그인: /login " + oauthProviders.map((p) => p.id).join(" | /login ") + "\n" +
+						"API 키로 로그인: /login <provider> (예: /login google)",
+					);
+					break;
+				}
+				try {
+					const oauth = oauthProviders.find(
+						(p) => p.id === spec || p.name.toLowerCase().includes(spec),
+					);
+					if (oauth) {
+						printer.note(oauth.name + " OAuth 로그인 시작");
+						await oauthLogin(authStorage, oauth.id, (m) => printer.note(m), askLine);
+						await afterAuth(registry, session, oauth.id, (m) => printer.note(m));
+					} else if (registry.getAll().some((m) => m.provider === spec)) {
+						await apiKeyLogin(authStorage, spec, askLine);
+						await afterAuth(registry, session, spec, (m) => printer.note(m));
+					} else {
+						printer.error("모르는 provider: " + spec);
+						printer.note("OAuth: " + oauthProviders.map((p) => p.id).join(", "));
+					}
+				} catch (e) {
+					const msg = e instanceof Error ? e.message : String(e);
+					if (msg === "Login cancelled") printer.note("로그인 취소함");
+					else printer.error("로그인 실패: " + msg);
+				} finally {
+					// A racing manual-input prompt may still be dangling; drop it.
+					if (awaiting) {
+						awaiting.resolve("");
+						awaiting = null;
+						rl.setPrompt(NORMAL_PROMPT);
+					}
+				}
+				break;
+			}
+			case "/logout": {
+				const spec = rest.join(" ").trim().toLowerCase();
+				if (!spec) {
+					const stored = authStorage.list();
+					printer.note("저장된 자격증명: " + (stored.length > 0 ? stored.join(", ") : "없음"));
+					break;
+				}
+				if (!authStorage.has(spec)) {
+					printer.error("저장된 자격증명 없음: " + spec);
+					break;
+				}
+				authStorage.logout(spec);
+				registry.refresh();
+				printer.note(spec + " 자격증명 삭제함");
+				break;
+			}
 			default:
 				printer.note("모르는 명령: " + cmd + " (/help)");
 		}
@@ -252,6 +327,13 @@ async function main(): Promise<void> {
 
 	rl.on("line", (line) => {
 		const text = line.trim();
+		if (awaiting) {
+			const a = awaiting;
+			awaiting = null;
+			rl.setPrompt(NORMAL_PROMPT);
+			a.resolve(text);
+			return;
+		}
 		const done = () => rl.prompt();
 		if (!text) return done();
 		const work = text.startsWith("/") ? handleCommand(text) : runPrompt(text);
@@ -259,6 +341,14 @@ async function main(): Promise<void> {
 	});
 
 	rl.on("SIGINT", () => {
+		if (awaiting) {
+			const a = awaiting;
+			awaiting = null;
+			rl.setPrompt(NORMAL_PROMPT);
+			a.reject(new Error("Login cancelled"));
+			rl.prompt();
+			return;
+		}
 		if (session.isStreaming) {
 			void session.abort();
 			printer.note("중단함");

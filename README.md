@@ -10,8 +10,17 @@
 
 API 키가 하나 필요하다. pi와 같은 자격증명을 쓴다:
 
+- 대화 모드에서 `/login` 실행 (브라우저 OAuth: anthropic, github-copilot, openai-codex / 다른 provider는 API 키 입력)
 - 환경변수: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` 등
 - 또는 `pi` CLI 로그인으로 만든 `~/.pi/agent/auth.json`
+
+## 설치
+
+```sh
+npm install -g oh-my-jeonseogu
+```
+
+전역 설치 후 `jeonseogu` (또는 `oh-my-jeonseogu`) 명령을 바로 쓸 수 있다.
 
 ## 실행
 
@@ -39,7 +48,7 @@ echo "뭐해" | jeonseogu    # 파이프
 | `--persona <path>` | 다른 페르소나 파일 사용 |
 | `--no-delay` | 메시지 사이 딜레이 끄기 |
 
-대화 중에는 `/new`(새 대화), `/model`, `/models`, `/delay`, `/quit`을 쓸 수 있다.
+대화 중에는 `/login`(로그인), `/logout`, `/new`(새 대화), `/model`, `/models`, `/delay`, `/quit`을 쓸 수 있다.
 
 ## 동작 방식
 
