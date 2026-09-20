@@ -1,134 +1,54 @@
-export interface CliOptions {
-	model?: string;
-	print?: string;
-	continueSession: boolean;
-	ephemeral: boolean;
-	noDelay: boolean;
-	tools: boolean;
-	thinking?: string;
+/**
+ * Maps jeonseogu argv to pi argv. jeonseogu-only flags (--persona) are
+ * consumed here; everything else is passed through to pi untouched.
+ */
+
+/** pi flags that take over tool selection — if present, we don't inject --no-tools. */
+const PI_TOOL_FLAGS = ["--no-tools", "-nt", "--no-builtin-tools", "-nbt", "--tools", "-t"];
+/** pi flags that pull in skills/extensions explicitly. */
+const PI_INCLUDE_FLAGS = ["--skill", "--extension", "-e"];
+/** pi flags that replace the default prompt. */
+const PI_PROMPT_FLAGS = ["--system-prompt", "--append-system-prompt"];
+
+export interface MappedArgs {
+	/** Flags injected ahead of the user's args. */
+	prepend: string[];
+	/** User args minus jeonseogu-only flags. */
+	rest: string[];
+	/** Custom persona path from --persona. */
 	persona?: string;
-	help: boolean;
-	version: boolean;
-	/** Positional args joined into a one-shot message (implies print mode). */
-	message?: string;
+	/** The user set their own prompt flags, so persona injection is skipped. */
+	userPrompt: boolean;
 }
 
-export type ParseResult = { ok: true; options: CliOptions } | { ok: false; error: string };
-
-export function parseArgv(argv: string[]): ParseResult {
-	const options: CliOptions = {
-		continueSession: false,
-		ephemeral: false,
-		noDelay: false,
-		tools: false,
-		help: false,
-		version: false,
-	};
-	const positional: string[] = [];
+export function mapArgs(argv: string[]): MappedArgs {
+	const rest: string[] = [];
+	let persona: string | undefined;
+	let userPrompt = false;
+	let sawToolFlag = false;
+	let sawIncludeFlag = false;
 
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i]!;
-		if (arg === "--") {
-			positional.push(...argv.slice(i + 1));
-			break;
+		if (arg === "--persona") {
+			persona = argv[++i];
+			continue;
 		}
-		// --flag=value form
-		const eq = arg.startsWith("--") ? arg.indexOf("=") : -1;
-		const flag = eq > 0 ? arg.slice(0, eq) : arg;
-		const inlineValue = eq > 0 ? arg.slice(eq + 1) : undefined;
-
-		const takeValue = (): string | undefined => {
-			if (inlineValue !== undefined) return inlineValue;
-			return argv[++i];
-		};
-
-		switch (flag) {
-			case "-m":
-			case "--model": {
-				const v = takeValue();
-				if (v === undefined) return { ok: false, error: flag + " requires a value" };
-				options.model = v;
-				break;
-			}
-			case "-p":
-			case "--print": {
-				const v = takeValue();
-				if (v === undefined) return { ok: false, error: flag + " requires a value" };
-				options.print = v;
-				break;
-			}
-			case "--think": {
-				const v = takeValue();
-				if (v === undefined) return { ok: false, error: flag + " requires a value" };
-				options.thinking = v;
-				break;
-			}
-			case "--persona": {
-				const v = takeValue();
-				if (v === undefined) return { ok: false, error: flag + " requires a value" };
-				options.persona = v;
-				break;
-			}
-			case "-c":
-			case "--continue":
-				options.continueSession = true;
-				break;
-			case "-e":
-			case "--ephemeral":
-				options.ephemeral = true;
-				break;
-			case "--no-delay":
-				options.noDelay = true;
-				break;
-			case "--tools":
-				options.tools = true;
-				break;
-			case "-h":
-			case "--help":
-				options.help = true;
-				break;
-			case "-v":
-			case "--version":
-				options.version = true;
-				break;
-			default:
-				if (arg.startsWith("-")) return { ok: false, error: "unknown flag: " + arg };
-				positional.push(arg);
+		if (arg.startsWith("--persona=")) {
+			persona = arg.slice("--persona=".length);
+			continue;
 		}
+		if (PI_PROMPT_FLAGS.includes(arg)) userPrompt = true;
+		if (PI_TOOL_FLAGS.includes(arg)) sawToolFlag = true;
+		if (PI_INCLUDE_FLAGS.includes(arg)) sawIncludeFlag = true;
+		rest.push(arg);
 	}
 
-	if (positional.length > 0) options.message = positional.join(" ");
-	return { ok: true, options };
-}
+	// Opinionated defaults: pure persona, no pi/project resources.
+	const prepend: string[] = [];
+	if (!sawToolFlag) prepend.push("--no-tools");
+	if (!sawIncludeFlag) prepend.push("--no-extensions", "--no-skills");
+	prepend.push("--no-context-files"); // AGENTS.md/CLAUDE.md must not leak into the persona
 
-export const USAGE = [
-	"oh-my-jeonseogu — 전서구 말투에서 영감을 받은 대화 CLI",
-	"",
-	"Usage:",
-	"  jeonseogu                     interactive chat",
-	'  jeonseogu "할 말"             one-shot reply',
-	'  echo "할 말" | jeonseogu      pipe mode',
-	'  jeonseogu -p "할 말"',
-	"",
-	"Options:",
-	"  -m, --model <spec>     provider:id, provider/id, or model id",
-	"  -p, --print <msg>      print one reply and exit",
-	"  -c, --continue         continue the most recent session",
-	"  -e, --ephemeral        don't persist the session",
-	"      --tools            enable coding tools (read/bash/edit/write)",
-	"      --think <level>    off|minimal|low|medium|high|xhigh",
-	"      --persona <path>   use a custom persona file",
-	"      --no-delay         no pause between split messages",
-	"  -h, --help             show this help",
-	"  -v, --version          show version",
-	"",
-	"In chat:",
-	"  /login      log in with OAuth or an API key (/login <provider>)",
-	"  /logout     remove stored credentials (/logout <provider>)",
-	"  /new        reset the conversation",
-	"  /model      show current model; /model <spec> to switch",
-	"  /models     list models with credentials configured",
-	"  /delay      toggle the pause between messages",
-	"  /quit       exit",
-	"",
-].join("\n");
+	return { prepend, rest, persona, userPrompt };
+}

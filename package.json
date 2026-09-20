@@ -1,7 +1,7 @@
 {
-  "name": "oh-my-jeonseogu",
-  "version": "0.1.0",
-  "description": "전서구 말투에서 영감을 받은, pi 기반의 장난스러운 대화 CLI",
+ "name": "oh-my-jeonseogu",
+  "version": "0.2.0",
+  "description": "전서구 말투에서 영감을 받은, pi TUI 하네스 위에서 도는 대화 CLI",
   "type": "module",
   "license": "MIT",
   "author": "gunggme",
@@ -27,7 +27,8 @@
     "prepack": "npm run build"
   },
   "dependencies": {
-    "@mariozechner/pi-coding-agent": "0.73.1"
+    "@mariozechner/pi-coding-agent": "0.73.1",
+    "undici": "^7.19.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

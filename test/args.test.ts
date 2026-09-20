@@ -1,38 +1,52 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
-import { parseArgv } from "../src/args.js";
+import { test } from "node:test";
+import { mapArgs } from "../src/args.js";
 
-describe("parseArgv", () => {
-	it("parses positional message", () => {
-		const r = parseArgv(["안녕", "전서구"]);
-		assert.ok(r.ok);
-		assert.equal(r.options.message, "안녕 전서구");
-	});
+test("injects isolation defaults by default", () => {
+	const m = mapArgs([]);
+	assert.deepEqual(m.prepend, ["--no-tools", "--no-extensions", "--no-skills", "--no-context-files"]);
+	assert.deepEqual(m.rest, []);
+	assert.equal(m.userPrompt, false);
+	assert.equal(m.persona, undefined);
+});
 
-	it("parses flags", () => {
-		const r = parseArgv(["-m", "anthropic:claude-x", "--no-delay", "--tools", "-e"]);
-		assert.ok(r.ok);
-		assert.equal(r.options.model, "anthropic:claude-x");
-		assert.equal(r.options.noDelay, true);
-		assert.equal(r.options.tools, true);
-		assert.equal(r.options.ephemeral, true);
-	});
+test("consumes --persona (both forms) and keeps the rest", () => {
+	const m = mapArgs(["--persona", "custom.md", "안녕"]);
+	assert.equal(m.persona, "custom.md");
+	assert.deepEqual(m.rest, ["안녕"]);
 
-	it("parses --flag=value", () => {
-		const r = parseArgv(["--model=openai/gpt-x", "--print=잘가"]);
-		assert.ok(r.ok);
-		assert.equal(r.options.model, "openai/gpt-x");
-		assert.equal(r.options.print, "잘가");
-	});
+	const m2 = mapArgs(["--persona=custom.md"]);
+	assert.equal(m2.persona, "custom.md");
+});
 
-	it("rejects unknown flags and missing values", () => {
-		assert.equal(parseArgv(["--nope"]).ok, false);
-		assert.equal(parseArgv(["--model"]).ok, false);
-	});
+test("does not inject --no-tools when the user picks tools", () => {
+	for (const flag of ["--tools", "-t", "--no-tools", "-nt", "--no-builtin-tools", "-nbt"]) {
+		const m = mapArgs([flag, "read"]);
+		assert.ok(!m.prepend.includes("--no-tools"), flag);
+	}
+});
 
-	it("treats everything after -- as positional", () => {
-		const r = parseArgv(["--", "--not-a-flag"]);
-		assert.ok(r.ok);
-		assert.equal(r.options.message, "--not-a-flag");
-	});
+test("keeps skills/extensions enabled when the user includes one explicitly", () => {
+	for (const flag of ["--skill", "--extension", "-e"]) {
+		const m = mapArgs([flag, "foo/index.ts"]);
+		assert.ok(!m.prepend.includes("--no-skills"), flag);
+		assert.ok(!m.prepend.includes("--no-extensions"), flag);
+	}
+});
+
+test("always disables context files", () => {
+	const m = mapArgs(["--tools", "read", "--skill", "foo"]);
+	assert.ok(m.prepend.includes("--no-context-files"));
+});
+
+test("detects user-provided prompt flags", () => {
+	for (const flag of ["--system-prompt", "--append-system-prompt"]) {
+		const m = mapArgs([flag, "you are x"]);
+		assert.equal(m.userPrompt, true, flag);
+	}
+});
+
+test("passes pi-native flags through in order", () => {
+	const m = mapArgs(["--model", "anthropic/claude-opus-4-5", "-c", "안녕"]);
+	assert.deepEqual(m.rest, ["--model", "anthropic/claude-opus-4-5", "-c", "안녕"]);
 });
