@@ -1,0 +1,15 @@
+import { MessageSplitter } from "./src/splitter.js";
+import { ChatPrinter } from "./src/printer.js";
+import { Writable } from "node:stream";
+let buf = "";
+const out = new Writable({ write(c, _e, cb) { buf += c.toString(); cb(); } });
+const p = new ChatPrinter({ delays: false, out });
+const s = new MessageSplitter();
+const stream = "만들어라\n---\n재밌겠네\n---\n긴 설명\n두 줄짜리";
+for (const ch of stream) for (const ev of s.feed(ch)) p.handle(ev);
+for (const ev of s.end()) p.handle(ev);
+p.finish();
+await p.drain();
+console.log(JSON.stringify(buf));
+console.log("---rendered---");
+process.stdout.write(buf + "\n");

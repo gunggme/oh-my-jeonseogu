@@ -1,0 +1,29 @@
+{
+  "name": "oh-my-jeonseogu",
+  "version": "0.1.0",
+  "description": "전서구 말투에서 영감을 받은, pi 기반의 장난스러운 대화 CLI",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "oh-my-jeonseogu": "dist/cli.js",
+    "jeonseogu": "dist/cli.js"
+  },
+  "files": ["dist", "personas", "README.md", "LICENSE"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/cli.js",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@mariozechner/pi-coding-agent": "0.73.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
