@@ -58,6 +58,16 @@ jeonseogu "전서구야 뭐해"   # 한 번만 답하고 종료 (pi --print와 �
 - 세션은 pi와 같은 위치(`~/.pi/agent/sessions`)에 저장되므로 `-c`/`--resume`이
   pi 세션 피커와 호환된다.
 
+## 자동 업데이트
+
+실행할 때 하루에 한 번 npm registry를 확인해서, oh-my-jeonseogu나 번들된 pi 하네스의
+새 버전이 있으면 백그라운드로 `npm i -g oh-my-jeonseogu@latest`를 돌린다. pi 의존성을
+caret 범위로 잡아둬서 재설치 시 최신 pi가 따라온다. 완료되면 TUI에 알림이 뜨고,
+다음 실행부터 적용된다.
+
+끄고 싶으면 `--no-update` 플래그나 `JEONSEOGU_NO_UPDATE=1` 환경변수. git clone에서
+직접 실행하는 경우(`npm run dev`)에는 알아서 꺼진다.
+
 ## 개발
 
 ```sh

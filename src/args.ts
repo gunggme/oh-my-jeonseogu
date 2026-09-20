@@ -19,6 +19,8 @@ export interface MappedArgs {
 	persona?: string;
 	/** The user set their own prompt flags, so persona injection is skipped. */
 	userPrompt: boolean;
+	/** Disable the background self-update check. */
+	noUpdate: boolean;
 }
 
 export function mapArgs(argv: string[]): MappedArgs {
@@ -27,6 +29,7 @@ export function mapArgs(argv: string[]): MappedArgs {
 	let userPrompt = false;
 	let sawToolFlag = false;
 	let sawIncludeFlag = false;
+	let noUpdate = false;
 
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i]!;
@@ -36,6 +39,10 @@ export function mapArgs(argv: string[]): MappedArgs {
 		}
 		if (arg.startsWith("--persona=")) {
 			persona = arg.slice("--persona=".length);
+			continue;
+		}
+		if (arg === "--no-update") {
+			noUpdate = true;
 			continue;
 		}
 		if (PI_PROMPT_FLAGS.includes(arg)) userPrompt = true;
@@ -50,5 +57,5 @@ export function mapArgs(argv: string[]): MappedArgs {
 	if (!sawIncludeFlag) prepend.push("--no-extensions", "--no-skills");
 	prepend.push("--no-context-files"); // AGENTS.md/CLAUDE.md must not leak into the persona
 
-	return { prepend, rest, persona, userPrompt };
+	return { prepend, rest, persona, userPrompt, noUpdate };
 }

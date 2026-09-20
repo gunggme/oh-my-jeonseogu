@@ -50,3 +50,10 @@ test("passes pi-native flags through in order", () => {
 	const m = mapArgs(["--model", "anthropic/claude-opus-4-5", "-c", "안녕"]);
 	assert.deepEqual(m.rest, ["--model", "anthropic/claude-opus-4-5", "-c", "안녕"]);
 });
+
+test("consumes --no-update", () => {
+	assert.equal(mapArgs([]).noUpdate, false);
+	const m = mapArgs(["--no-update", "안녕"]);
+	assert.equal(m.noUpdate, true);
+	assert.deepEqual(m.rest, ["안녕"]);
+});

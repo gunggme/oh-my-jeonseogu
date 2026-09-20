@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { main } from "@mariozechner/pi-coding-agent";
+import { main, VERSION as PI_VERSION } from "@mariozechner/pi-coding-agent";
 import { EnvHttpProxyAgent, setGlobalDispatcher } from "undici";
 import { mapArgs } from "./args.js";
 import { jeonseoguBanner } from "./banner.js";
+import { pkgVersion, shouldAutoUpdate, startAutoUpdate } from "./updater.js";
 
 // Same preamble as pi's own cli.js: long provider streams must not hit
 // undici's default body timeouts, and HTTP(S)_PROXY should be honored.
@@ -29,6 +30,10 @@ async function run(argv: string[]): Promise<void> {
 		args.push("--system-prompt", persona);
 	}
 	args.push(...mapped.rest);
+	if (shouldAutoUpdate(mapped.noUpdate)) {
+		// Background check; the banner extension reports the outcome in the TUI.
+		void startAutoUpdate(pkgVersion(), PI_VERSION);
+	}
 	await main(args, { extensionFactories: [jeonseoguBanner] });
 }
 

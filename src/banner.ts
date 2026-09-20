@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
 import { VERSION as PI_VERSION, type ExtensionAPI, type Theme } from "@mariozechner/pi-coding-agent";
+import { pkgVersion, updateOutcome } from "./updater.js";
 
 /** 5-row block-letter font for the startup banner. */
 const GLYPHS: Record<string, string[]> = {
@@ -27,15 +27,6 @@ function renderWord(word: string): string[] {
 
 /** The pigeon, standing to the right of the OH-MY wordmark. */
 const PIGEON = [" (o>", " \\_//)", "  \\_/_)", "   _|_"];
-
-function pkgVersion(): string {
-	try {
-		const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-		return pkg.version ?? "0.0.0";
-	} catch {
-		return "0.0.0";
-	}
-}
 
 function bannerLines(theme: Theme): string[] {
 	const accent = (s: string): string => theme.fg("accent", s);
@@ -69,5 +60,17 @@ export function jeonseoguBanner(pi: ExtensionAPI): void {
 			render: () => bannerLines(theme),
 			invalidate: () => {},
 		}));
+		// If cli.ts kicked off the update check, report the outcome once it lands.
+		void updateOutcome()?.then((outcome) => {
+			if (!outcome) return;
+			const piPart = outcome.info.pi.latest !== outcome.info.pi.current
+				? " (pi 하네스 v" + outcome.info.pi.latest + " 포함)"
+				: "";
+			if (outcome.ok) {
+				ctx.ui.notify("업데이트 완료: v" + outcome.info.self.latest + piPart + " — 다음 실행부터 적용됨", "info");
+			} else {
+				ctx.ui.notify("자동 업데이트 실패. 나중에 npm i -g oh-my-jeonseogu@latest 로 직접 하면 됨", "warning");
+			}
+		});
 	});
 }
