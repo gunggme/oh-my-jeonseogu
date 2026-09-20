@@ -55,7 +55,7 @@ function bannerLines(theme: Theme): string[] {
 		"",
 		...jeonseogu,
 		"",
-		muted("전서구 말투 캐릭터") + dim(" · oh-my-jeonseogu v" + pkgVersion() + " · pi v" + PI_VERSION),
+		muted("전서구") + dim(" · oh-my-jeonseogu v" + pkgVersion() + " · pi v" + PI_VERSION),
 		dim("/login 로그인 · /help 도움말 · ctrl+c 나가기"),
 		"",
 	];
