@@ -55,6 +55,8 @@ jeonseogu "전서구야 뭐해"   # 한 번만 답하고 종료 (pi --print와 �
 - `src/cli.ts`는 60줄짜리 얇은 래퍼다. argv를 매핑한 뒤 pi 패키지의 `main()`을
   그대로 호출하고, 프록시/타임아웃 처리도 pi에 위임한다.
 - 페르소나는 [personas/jeonseogu.md](personas/jeonseogu.md) 하나에 정의돼 있다.
+  잡담, 장난, 감정 표현, 기술 질문, 작업 부탁 전반에서 상대의 말에 맞는 반응과
+  같은 화자의 말투를 유지하도록 지시한다.
   캐릭터는 답변을 `"---"` 줄로 나눠 여러 메시지처럼 보내는데, pi TUI에서는
   하나의 응답 안에 구분선으로 렌더링된다.
 - 세션은 pi와 같은 위치(`~/.pi/agent/sessions`)에 저장되므로 `-c`/`--resume`이
@@ -83,3 +85,6 @@ npm run check    # tsc --noEmit
 npm test         # argv 매핑 유닛 테스트
 npm run update:pi # 최신 pi 설치 + 빌드
 ```
+
+페르소나를 수정하면 [대화 평가 시나리오](docs/persona-evaluation.md)로 실제 모델의
+응답도 확인한다. 문구가 프롬프트에 들어 있는지만으로 말투 유지 여부를 검증할 수는 없다.
