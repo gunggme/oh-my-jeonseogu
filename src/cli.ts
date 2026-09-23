@@ -1,18 +1,16 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { main, VERSION as PI_VERSION } from "@mariozechner/pi-coding-agent";
-import { EnvHttpProxyAgent, setGlobalDispatcher } from "undici";
+import { main, VERSION as PI_VERSION } from "@earendil-works/pi-coding-agent";
 import { mapArgs } from "./args.js";
 import { jeonseoguBanner } from "./banner.js";
 import { pkgVersion, shouldAutoUpdate, startAutoUpdate } from "./updater.js";
 
-// Same preamble as pi's own cli.js: long provider streams must not hit
-// undici's default body timeouts, and HTTP(S)_PROXY should be honored.
+// pi's main() configures its own HTTP dispatcher, proxy, and timeout settings.
 process.env.PI_CODING_AGENT = "true";
+process.env.AI_AGENT = "pi";
 process.title = "jeonseogu";
 process.emitWarning = () => {};
-setGlobalDispatcher(new EnvHttpProxyAgent({ bodyTimeout: 0, headersTimeout: 0 }));
 
 const DEFAULT_PERSONA_PATH = fileURLToPath(new URL("../personas/jeonseogu.md", import.meta.url));
 

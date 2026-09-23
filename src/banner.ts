@@ -1,4 +1,4 @@
-import { VERSION as PI_VERSION, type ExtensionAPI, type Theme } from "@mariozechner/pi-coding-agent";
+import { VERSION as PI_VERSION, type ExtensionAPI, type Theme } from "@earendil-works/pi-coding-agent";
 import { pkgVersion, updateOutcome } from "./updater.js";
 
 /** 5-row block-letter font for the startup banner. */

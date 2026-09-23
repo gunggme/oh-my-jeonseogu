@@ -47,6 +47,7 @@ export function shouldAutoUpdate(noUpdateFlag: boolean): boolean {
 }
 
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const PI_PACKAGE = "@earendil-works/pi-coding-agent";
 
 function cachePath(): string {
 	const base =
@@ -59,6 +60,7 @@ function cachePath(): string {
 interface UpdateCache {
 	checkedAt: number;
 	selfLatest?: string;
+	piPackage?: string;
 	piLatest?: string;
 }
 
@@ -102,9 +104,9 @@ async function latestVersion(pkg: string): Promise<string | undefined> {
 export async function checkForUpdates(selfVersion: string, piVersion: string): Promise<UpdateInfo | null> {
 	const cached = readCache();
 	const selfLatest = cached?.selfLatest ?? (await latestVersion("oh-my-jeonseogu"));
-	const piLatest = cached?.piLatest ?? (await latestVersion("@mariozechner/pi-coding-agent"));
-	if (!cached && (selfLatest || piLatest)) {
-		writeCache({ checkedAt: Date.now(), selfLatest, piLatest });
+	const piLatest = (cached?.piPackage === PI_PACKAGE ? cached.piLatest : undefined) ?? (await latestVersion(PI_PACKAGE));
+	if (selfLatest || piLatest) {
+		writeCache({ checkedAt: cached?.checkedAt ?? Date.now(), selfLatest, piPackage: PI_PACKAGE, piLatest });
 	}
 	const info: UpdateInfo = {
 		self: { current: selfVersion, latest: selfLatest ?? selfVersion },
@@ -114,7 +116,7 @@ export async function checkForUpdates(selfVersion: string, piVersion: string): P
 	return null;
 }
 
-/** Reinstall the package globally; pulls the newest bundled pi via its caret-range dep. */
+/** Reinstall the package globally; the pi dependency follows npm's latest tag. */
 function runSelfUpdate(): Promise<boolean> {
 	return new Promise((resolve) => {
 		const cmd = process.platform === "win32" ? "npm.cmd" : "npm";

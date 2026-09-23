@@ -17,18 +17,18 @@
     "jeonseogu": "dist/cli.js"
   },
   "files": ["dist", "personas", "README.md", "LICENSE"],
-  "engines": { "node": ">=22" },
+  "engines": { "node": ">=22.19.0" },
   "scripts": {
     "dev": "tsx src/cli.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/cli.js",
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test test/*.test.ts",
+    "update:pi": "npm update @earendil-works/pi-coding-agent && npm run build",
     "prepack": "npm run build"
   },
   "dependencies": {
-    "@mariozechner/pi-coding-agent": "^0.73.1",
-    "undici": "^7.19.1"
+    "@earendil-works/pi-coding-agent": "latest"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

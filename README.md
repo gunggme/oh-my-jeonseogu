@@ -4,11 +4,13 @@
 실제 인물이 아니라 그 말투에서 영감을 받은 캐릭터다. 말투 설계의 근거는
 [docs/jeonseogu-style-research.md](docs/jeonseogu-style-research.md)에 있다.
 
-[pi](https://github.com/badlogic/pi-mono)의 TUI 하네스(`@mariozechner/pi-coding-agent`)를
+[pi](https://github.com/earendil-works/pi)의 TUI 하네스(`@earendil-works/pi-coding-agent`)를
 그대로 띄우고 시스템 프롬프트만 페르소나로 교체한다. 로그인, 모델 선택, 세션 관리,
 키바인딩 등은 전부 pi 네이티브다.
 
 ## 준비
+
+Node.js 22.19 이상이 필요하다.
 
 API 키가 하나 필요하다. pi와 같은 자격증명을 쓴다 (~/.pi/agent/auth.json 공유):
 
@@ -51,7 +53,7 @@ jeonseogu "전서구야 뭐해"   # 한 번만 답하고 종료 (pi --print와 �
 ## 동작 방식
 
 - `src/cli.ts`는 60줄짜리 얇은 래퍼다. argv를 매핑한 뒤 pi 패키지의 `main()`을
-  그대로 호출하고, 프록시/타임아웃 처리도 pi의 `cli.js` 프리앰블을 그대로 따른다.
+  그대로 호출하고, 프록시/타임아웃 처리도 pi에 위임한다.
 - 페르소나는 [personas/jeonseogu.md](personas/jeonseogu.md) 하나에 정의돼 있다.
   캐릭터는 답변을 `"---"` 줄로 나눠 여러 메시지처럼 보내는데, pi TUI에서는
   하나의 응답 안에 구분선으로 렌더링된다.
@@ -62,11 +64,16 @@ jeonseogu "전서구야 뭐해"   # 한 번만 답하고 종료 (pi --print와 �
 
 실행할 때 하루에 한 번 npm registry를 확인해서, oh-my-jeonseogu나 번들된 pi 하네스의
 새 버전이 있으면 백그라운드로 `npm i -g oh-my-jeonseogu@latest`를 돌린다. pi 의존성을
-caret 범위로 잡아둬서 재설치 시 최신 pi가 따라온다. 완료되면 TUI에 알림이 뜨고,
+`latest` 태그로 지정해 0.x의 마이너 버전에도 묶이지 않도록 한다. 완료되면 TUI에 알림이 뜨고,
 다음 실행부터 적용된다.
 
 끄고 싶으면 `--no-update` 플래그나 `JEONSEOGU_NO_UPDATE=1` 환경변수. git clone에서
 직접 실행하는 경우(`npm run dev`)에는 알아서 꺼진다.
+
+개발 체크아웃에서는 `npm run update:pi`로 최신 pi와 모델 목록을 가져오고 다시 빌드한다.
+`package-lock.json`은 재현 가능한 설치를 위해 유지하며, 이 명령으로 함께 갱신한다.
+pi는 모델 카탈로그도 자동으로 갱신한다. `/model`에서 `astra`나 `luna`를 검색하거나
+`npm start -- --list-models astra`로 사용 가능한 모델을 확인할 수 있다.
 
 ## 개발
 
@@ -74,4 +81,5 @@ caret 범위로 잡아둬서 재설치 시 최신 pi가 따라온다. 완료되�
 npm run dev      # tsx로 바로 실행
 npm run check    # tsc --noEmit
 npm test         # argv 매핑 유닛 테스트
+npm run update:pi # 최신 pi 설치 + 빌드
 ```
