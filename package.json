@@ -24,6 +24,7 @@
     "start": "node dist/cli.js",
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test test/*.test.ts",
+    "eval:persona": "node scripts/evaluate-persona.mjs",
     "update:pi": "npm update @earendil-works/pi-coding-agent && npm run build",
     "prepack": "npm run build"
   },

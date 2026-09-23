@@ -56,6 +56,9 @@ export function mapArgs(argv: string[]): MappedArgs {
 	if (!sawToolFlag) prepend.push("--no-tools");
 	if (!sawIncludeFlag) prepend.push("--no-extensions", "--no-skills");
 	prepend.push("--no-context-files"); // AGENTS.md/CLAUDE.md must not leak into the persona
+	// Pi discovers APPEND_SYSTEM.md separately from context files. An explicit
+	// empty append source suppresses discovery without changing user overrides.
+	if (!userPrompt) prepend.push("--append-system-prompt", "");
 
 	return { prepend, rest, persona, userPrompt, noUpdate };
 }

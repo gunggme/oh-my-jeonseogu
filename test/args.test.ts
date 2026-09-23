@@ -4,7 +4,7 @@ import { mapArgs } from "../src/args.js";
 
 test("injects isolation defaults by default", () => {
 	const m = mapArgs([]);
-	assert.deepEqual(m.prepend, ["--no-tools", "--no-extensions", "--no-skills", "--no-context-files"]);
+	assert.deepEqual(m.prepend, ["--no-tools", "--no-extensions", "--no-skills", "--no-context-files", "--append-system-prompt", ""]);
 	assert.deepEqual(m.rest, []);
 	assert.equal(m.userPrompt, false);
 	assert.equal(m.persona, undefined);
@@ -43,6 +43,7 @@ test("detects user-provided prompt flags", () => {
 	for (const flag of ["--system-prompt", "--append-system-prompt"]) {
 		const m = mapArgs([flag, "you are x"]);
 		assert.equal(m.userPrompt, true, flag);
+		assert.ok(!m.prepend.includes("--append-system-prompt"), flag);
 	}
 });
 

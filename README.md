@@ -3,6 +3,7 @@
 디스코드 유저 "전서구"의 말투에서 영감을 받은 캐릭터와 대화하는 장난스러운 CLI.
 실제 인물이 아니라 그 말투에서 영감을 받은 캐릭터다. 말투 설계의 근거는
 [docs/jeonseogu-style-research.md](docs/jeonseogu-style-research.md)에 있다.
+추가 문맥 조사와 수정 근거는 [2026-09-23 조사](docs/jeonseogu-context-review-2026-09-23.md)에 정리했다.
 
 [pi](https://github.com/earendil-works/pi)의 TUI 하네스(`@earendil-works/pi-coding-agent`)를
 그대로 띄우고 시스템 프롬프트만 페르소나로 교체한다. 로그인, 모델 선택, 세션 관리,
@@ -49,6 +50,7 @@ jeonseogu "전서구야 뭐해"   # 한 번만 답하고 종료 (pi --print와 �
 | `--no-tools` | 순수 대화 (코딩 도구 끔) | `--tools read,bash,...` 등 pi의 도구 플래그를 직접 전달 |
 | `--no-extensions --no-skills` | 사용자 pi 설정에서 확장/스킬 유입 차단 | `--extension`/`--skill`로 명시적 지정 |
 | `--no-context-files` | cwd의 AGENTS.md/CLAUDE.md 유입 차단 | 없음 (페르소나 순수성 유지용) |
+| `--append-system-prompt ""` | 전역·프로젝트의 APPEND_SYSTEM.md 자동 유입 차단 | 사용자 프롬프트 플래그를 직접 전달 |
 
 ## 동작 방식
 
@@ -82,7 +84,8 @@ pi는 모델 카탈로그도 자동으로 갱신한다. `/model`에서 `astra`�
 ```sh
 npm run dev      # tsx로 바로 실행
 npm run check    # tsc --noEmit
-npm test         # argv 매핑 유닛 테스트
+npm test         # argv, 프롬프트 격리, 업데이터 테스트
+npm run eval:persona -- --out /tmp/persona-results.jsonl # gpt-5.5/medium 반복 평가 (인증 필요)
 npm run update:pi # 최신 pi 설치 + 빌드
 ```
 
