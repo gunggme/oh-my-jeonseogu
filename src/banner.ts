@@ -26,17 +26,29 @@ function renderWord(word: string): string[] {
 }
 
 /** The pigeon, standing to the right of the OH-MY wordmark. */
-const PIGEON = [" (o>", " \\_//)", "  \\_/_)", "   _|_"];
+const PIGEON = [
+	"            .-.",
+	"           (o  >",
+	"        _.-'   \\",
+	"     .-'  .-.   |",
+	"    /    /==/   /",
+	"   /__..'__/_.-'",
+	"  <________/",
+	"        _| _|",
+];
 
 function bannerLines(theme: Theme): string[] {
 	const accent = (s: string): string => theme.fg("accent", s);
 	const muted = (s: string): string => theme.fg("muted", s);
 	const dim = (s: string): string => theme.fg("dim", s);
 
-	const ohMy = renderWord("OH-MY").map((row, i) => {
-		// pigeon's feet sit on the OH-MY baseline (last row)
-		const bird = i >= 1 ? "  " + dim(PIGEON[i - 1]!) : "";
-		return muted(row) + bird;
+	const wordmark = renderWord("OH-MY");
+	const height = Math.max(wordmark.length, PIGEON.length);
+	const ohMy = Array.from({ length: height }, (_, i) => {
+		// Align the wordmark's baseline with the pigeon's feet.
+		const row = wordmark[i - (height - wordmark.length)] ?? " ".repeat(wordmark[0]!.length);
+		const bird = PIGEON[i - (height - PIGEON.length)] ?? "";
+		return muted(row) + "  " + dim(bird);
 	});
 	const jeonseogu = renderWord("JEONSEOGU").map(accent);
 
