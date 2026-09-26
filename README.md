@@ -85,9 +85,13 @@ pi는 모델 카탈로그도 자동으로 갱신한다. `/model`에서 `astra`�
 npm run dev      # tsx로 바로 실행
 npm run check    # tsc --noEmit
 npm test         # argv, 프롬프트 격리, 업데이터 테스트
+npm run test:package # 배포 tarball을 새 디렉터리에 설치하고 CLI 실행 검증
 npm run eval:persona -- --out /tmp/persona-results.jsonl # gpt-5.5/medium 반복 평가 (인증 필요)
 npm run update:pi # 최신 pi 설치 + 빌드
 ```
 
 페르소나를 수정하면 [대화 평가 시나리오](docs/persona-evaluation.md)로 실제 모델의
 응답도 확인한다. 문구가 프롬프트에 들어 있는지만으로 말투 유지 여부를 검증할 수는 없다.
+
+PR 검증, AI 코드 리뷰, `master` 기준 npm 자동 배포 설정과 공개 전환 절차는
+[릴리스 가이드](docs/releasing.md)에 정리했다.
