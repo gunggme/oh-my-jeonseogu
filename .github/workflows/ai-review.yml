@@ -35,7 +35,7 @@ jobs:
     steps:
       - name: Check configuration and trusted initiator
         id: pr
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
@@ -82,7 +82,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.base }}
           persist-credentials: false
       - name: Read PR diff as data
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ needs.prepare.outputs.number }}
           BASE_SHA: ${{ needs.prepare.outputs.base }}
@@ -123,7 +123,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Update one review comment for the current commit
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ needs.prepare.outputs.number }}
           HEAD_SHA: ${{ needs.prepare.outputs.head }}
