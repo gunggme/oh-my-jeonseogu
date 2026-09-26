@@ -19,7 +19,7 @@ export interface MappedArgs {
 	persona?: string;
 	/** The user set their own prompt flags, so persona injection is skipped. */
 	userPrompt: boolean;
-	/** Disable the background self-update check. */
+	/** Disable the startup update check and prompt. */
 	noUpdate: boolean;
 }
 

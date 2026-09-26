@@ -38,7 +38,8 @@ jeonseogu "전서구야 뭐해"   # 한 번만 답하고 종료 (pi --print와 �
 모든 pi 플래그가 그대로 통한다 (`--model`, `-c/--continue`, `--no-session`,
 `--thinking`, `-e <path>` 등). `jeonseogu --help`는 pi의 도움말과 같다.
 
-전서구 전용 플래그는 하나뿐이다: `--persona <path>` (다른 페르소나 파일 사용).
+전서구 전용 플래그는 `--persona <path>` (다른 페르소나 파일 사용)와
+`--no-update` (시작 시 업데이트 확인 끄기)다.
 
 ## 기본값
 
@@ -94,15 +95,33 @@ TUI에서 `/model`을 열면 pi가 모델 목록을 갱신하고, 현재 인증�
 - 세션은 pi와 같은 위치(`~/.pi/agent/sessions`)에 저장되므로 `-c`/`--resume`이
   pi 세션 피커와 호환된다.
 
-## 자동 업데이트
+## 시작 시 업데이트
 
-실행할 때 하루에 한 번 npm registry를 확인해서, oh-my-jeonseogu나 번들된 pi 하네스의
-새 버전이 있으면 백그라운드로 `npm i -g oh-my-jeonseogu@latest`를 돌린다. pi 의존성을
-`latest` 태그로 지정해 0.x의 마이너 버전에도 묶이지 않도록 한다. 완료되면 TUI에 알림이 뜨고,
-다음 실행부터 적용된다.
+대화형 실행 시 npm registry를 확인한다(24시간 캐시, 요청당 최대 4초).
+oh-my-jeonseogu나 번들된 pi 하네스의 새 버전이 있으면 대화 시작 전에 버전과 선택지를 보여 준다:
 
-끄고 싶으면 `--no-update` 플래그나 `JEONSEOGU_NO_UPDATE=1` 환경변수. git clone에서
-직접 실행하는 경우(`npm run dev`)에는 알아서 꺼진다.
+```text
+새 업데이트가 있습니다
+oh-my-jeonseogu v0.2.3 → v0.2.4
+
+› 1. 지금 업데이트
+  2. 이번에는 건너뛰기
+  3. 다음 버전까지 알리지 않기
+```
+
+방향키와 Enter 또는 숫자 1~3으로 선택한다. Esc는 이번 실행만 건너뛴다.
+`지금 업데이트`를 선택해야 `npm install -g oh-my-jeonseogu@latest`가 실행되며,
+설치 진행 상황을 터미널에 표시한다. 완료되면 재실행 안내 후 종료한다.
+**`jeonseogu`를 다시 실행해야 최신 버전으로 대화를 시작한다.** 설치 실패 시에는
+수동 설치 명령을 안내하고 종료 코드 1로 끝난다.
+
+건너뛰면 현재 버전으로 바로 대화한다. `다음 버전까지 알리지 않기`는 캐시가 만료돼도
+유지되며, 전서구나 pi에 더 새 버전이 나오면 다시 알린다. pi 의존성은 `latest` 태그를
+사용하므로 0.x의 마이너 버전에도 묶이지 않는다.
+
+`--no-update`, `JEONSEOGU_NO_UPDATE=1`, `--offline`/`PI_OFFLINE=1`, 개발 체크아웃(`npm run dev`)에서는
+확인을 생략한다. `--print`, JSON/RPC 모드, 파이프 입출력, 도움말·버전·모델 목록·관리 명령에서는
+업데이트 메뉴와 설치를 실행하지 않는다. 네트워크 확인에 실패하면 현재 버전으로 계속 시작한다.
 
 개발 체크아웃에서는 `npm run update:pi`로 최신 pi와 모델 목록을 가져오고 다시 빌드한다.
 `package-lock.json`은 재현 가능한 설치를 위해 유지하며, 이 명령으로 함께 갱신한다.

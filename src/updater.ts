@@ -2,19 +2,14 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export interface UpdateInfo {
 	self: { current: string; latest: string };
 	pi: { current: string; latest: string };
 }
 
-export interface UpdateOutcome {
-	info: UpdateInfo;
-	/** npm exited 0. */
-	ok: boolean;
-}
-
-export const PACKAGE_ROOT = new URL("../", import.meta.url).pathname;
+export const PACKAGE_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 export function pkgVersion(): string {
 	try {
@@ -38,8 +33,8 @@ export function isNewer(latest: string, current: string): boolean {
 	return false;
 }
 
-/** Skip auto-update in dev checkouts and when explicitly disabled. */
-export function shouldAutoUpdate(noUpdateFlag: boolean): boolean {
+/** Skip update checks in dev checkouts and when explicitly disabled. */
+export function shouldCheckForUpdates(noUpdateFlag: boolean): boolean {
 	if (noUpdateFlag) return false;
 	if (process.env.JEONSEOGU_NO_UPDATE) return false;
 	if (existsSync(join(PACKAGE_ROOT, ".git"))) return false; // running from a git clone
@@ -62,25 +57,40 @@ interface UpdateCache {
 	selfLatest?: string;
 	piPackage?: string;
 	piLatest?: string;
+	dismissedSelf?: string;
+	dismissedPi?: string;
+}
+
+function version(value: unknown): string | undefined {
+	return typeof value === "string" && /^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/.test(value) ? value : undefined;
 }
 
 function readCache(): UpdateCache | undefined {
 	try {
-		const data = JSON.parse(readFileSync(cachePath(), "utf8")) as UpdateCache;
-		if (Date.now() - data.checkedAt < CHECK_INTERVAL_MS) return data;
+		const data: unknown = JSON.parse(readFileSync(cachePath(), "utf8"));
+		if (typeof data !== "object" || data === null || !("checkedAt" in data)) return undefined;
+		return {
+			checkedAt: typeof data.checkedAt === "number" && Number.isFinite(data.checkedAt) ? data.checkedAt : 0,
+			selfLatest: "selfLatest" in data ? version(data.selfLatest) : undefined,
+			piPackage: "piPackage" in data && data.piPackage === PI_PACKAGE ? PI_PACKAGE : undefined,
+			piLatest: "piLatest" in data ? version(data.piLatest) : undefined,
+			dismissedSelf: "dismissedSelf" in data ? version(data.dismissedSelf) : undefined,
+			dismissedPi: "dismissedPi" in data ? version(data.dismissedPi) : undefined,
+		};
 	} catch {
-		// no fresh cache
+		// Missing or corrupt cache must not prevent startup.
 	}
 	return undefined;
 }
 
-function writeCache(cache: UpdateCache): void {
+function writeCache(cache: UpdateCache): boolean {
 	try {
 		const p = cachePath();
 		mkdirSync(join(p, ".."), { recursive: true });
 		writeFileSync(p, JSON.stringify(cache));
+		return true;
 	} catch {
-		// best effort
+		return false;
 	}
 }
 
@@ -90,8 +100,8 @@ async function latestVersion(pkg: string): Promise<string | undefined> {
 			signal: AbortSignal.timeout(4000),
 		});
 		if (!res.ok) return undefined;
-		const data = (await res.json()) as { version?: string };
-		return data.version;
+		const data: unknown = await res.json();
+		return typeof data === "object" && data !== null && "version" in data ? version(data.version) : undefined;
 	} catch {
 		return undefined; // offline / blocked network — never break the CLI
 	}
@@ -99,51 +109,47 @@ async function latestVersion(pkg: string): Promise<string | undefined> {
 
 /**
  * Check npm for newer versions of ourselves and of the pi harness.
- * Uses a 24h cache; returns null when nothing newer or on any failure.
+ * Uses a 24h cache; returns null when nothing new needs to be shown.
  */
 export async function checkForUpdates(selfVersion: string, piVersion: string): Promise<UpdateInfo | null> {
 	const cached = readCache();
-	const selfLatest = cached?.selfLatest ?? (await latestVersion("oh-my-jeonseogu"));
-	const piLatest = (cached?.piPackage === PI_PACKAGE ? cached.piLatest : undefined) ?? (await latestVersion(PI_PACKAGE));
+	const age = cached ? Date.now() - cached.checkedAt : Infinity;
+	const fresh = age >= 0 && age < CHECK_INTERVAL_MS ? cached : undefined;
+	const [selfLatest, piLatest] = await Promise.all([
+		fresh?.selfLatest ?? latestVersion("oh-my-jeonseogu"),
+		(fresh?.piPackage === PI_PACKAGE ? fresh.piLatest : undefined) ?? latestVersion(PI_PACKAGE),
+	]);
 	if (selfLatest || piLatest) {
-		writeCache({ checkedAt: cached?.checkedAt ?? Date.now(), selfLatest, piPackage: PI_PACKAGE, piLatest });
+		writeCache({ ...cached, checkedAt: fresh?.checkedAt ?? Date.now(), selfLatest, piPackage: PI_PACKAGE, piLatest });
 	}
 	const info: UpdateInfo = {
 		self: { current: selfVersion, latest: selfLatest ?? selfVersion },
 		pi: { current: piVersion, latest: piLatest ?? piVersion },
 	};
-	if (isNewer(info.self.latest, selfVersion) || isNewer(info.pi.latest, piVersion)) return info;
+	const showSelf = isNewer(info.self.latest, selfVersion) && (!cached?.dismissedSelf || isNewer(info.self.latest, cached.dismissedSelf));
+	const showPi = isNewer(info.pi.latest, piVersion) && (!cached?.dismissedPi || isNewer(info.pi.latest, cached.dismissedPi));
+	if (showSelf || showPi) return info;
 	return null;
 }
 
-/** Reinstall the package globally; the pi dependency follows npm's latest tag. */
-function runSelfUpdate(): Promise<boolean> {
-	return new Promise((resolve) => {
-		const cmd = process.platform === "win32" ? "npm.cmd" : "npm";
-		const child = spawn(cmd, ["install", "-g", "oh-my-jeonseogu@latest"], {
-			detached: true,
-			stdio: "ignore",
-			shell: process.platform === "win32",
-		});
-		child.on("error", () => resolve(false));
-		child.on("exit", (code) => resolve(code === 0));
+/** Keep dismissals even after the registry cache expires. */
+export function dismissUpdate(info: UpdateInfo): boolean {
+	const cached = readCache();
+	return writeCache({
+		...cached, checkedAt: cached?.checkedAt ?? 0,
+		dismissedSelf: info.self.latest, dismissedPi: info.pi.latest,
 	});
 }
 
-let started: Promise<UpdateOutcome | null> | undefined;
-
-/** The in-flight update, if cli.ts started one. */
-export function updateOutcome(): Promise<UpdateOutcome | null> | undefined {
-	return started;
-}
-
-/** Singleton: check, then self-update in the background. Never throws. */
-export function startAutoUpdate(selfVersion: string, piVersion: string): Promise<UpdateOutcome | null> {
-	started ??= (async (): Promise<UpdateOutcome | null> => {
-		const info = await checkForUpdates(selfVersion, piVersion);
-		if (!info) return null;
-		const ok = await runSelfUpdate();
-		return { info, ok };
-	})();
-	return started;
+/** Only called after the user chooses to update, before pi takes over the terminal. */
+export function runSelfUpdate(): Promise<boolean> {
+	return new Promise((resolve) => {
+		const cmd = process.platform === "win32" ? "npm.cmd" : "npm";
+		const child = spawn(cmd, ["install", "-g", "oh-my-jeonseogu@latest"], {
+			stdio: "inherit",
+			shell: process.platform === "win32",
+		});
+		child.on("error", () => resolve(false));
+		child.on("close", (code) => resolve(code === 0));
+	});
 }
