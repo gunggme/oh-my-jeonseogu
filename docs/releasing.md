@@ -40,6 +40,11 @@ AI 의견은 사람의 승인이나 필수 CI 검사를 대체하지 않는다.
 GitHub 저장소를 비공개로 유지한 채 npm 패키지를 **공개** 발행할 수 있다.
 아래 명령은 GitHub의 공개 설정을 변경하지 않는다.
 
+최초 발행 전에 npm 계정 설정에서 **Two-Factor Authentication**을 활성화한다.
+이메일 OTP로 CLI 로그인에 성공했어도 계정 2FA가 꺼져 있으면 `npm publish`는
+403을 반환한다. npm이 지원하는 패스키·Touch ID·보안 키를 등록하고 복구 코드를
+보관한 뒤 진행한다. Trusted Publisher 설정에도 계정 2FA가 필요하다.
+
 ```sh
 npm login
 npm ci
