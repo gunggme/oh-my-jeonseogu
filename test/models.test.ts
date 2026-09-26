@@ -7,7 +7,7 @@ import {
 	createAgentSession, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager,
 	type AgentSession, type ModelSelectEvent,
 } from "@earendil-works/pi-coding-agent";
-import { rememberModelSelection } from "../src/models.js";
+import { jeonseoguModels, latestAvailableModel } from "../src/models.js";
 
 async function fixture() {
 	const root = mkdtempSync(join(tmpdir(), "jeonseogu-models-"));
@@ -19,28 +19,36 @@ async function fixture() {
 	writeFileSync(join(agentDir, "models.json"), JSON.stringify({ providers: {
 		"jeonseogu-test": {
 			api: "openai-completions", baseUrl: "http://127.0.0.1:1/v1", apiKey: "test-only",
-			models: [{ id: "model-1" }, { id: "model-2" }],
+			models: [{ id: "gpt-5.5", reasoning: true }, { id: "gpt-6-astra", reasoning: true }],
 		},
 	} }));
 	const modelRuntime = await ModelRuntime.create({
 		authPath: join(agentDir, "auth.json"), modelsPath: join(agentDir, "models.json"), allowModelNetwork: false,
 	});
-	const first = modelRuntime.getModel("jeonseogu-test", "model-1")!;
-	const second = modelRuntime.getModel("jeonseogu-test", "model-2")!;
+	const first = modelRuntime.getModel("jeonseogu-test", "gpt-5.5")!;
+	const second = modelRuntime.getModel("jeonseogu-test", "gpt-6-astra")!;
 	const sessions: AgentSession[] = [];
 	const warnings: string[] = [];
-	async function open(options: { model?: typeof first; mode?: "tui" | "rpc" | "print"; sessionManager?: SessionManager } = {}) {
-		const settingsManager = SettingsManager.create(root, agentDir, { projectTrusted: false });
+	async function open(options: {
+		model?: typeof first; mode?: "tui" | "rpc" | "print"; sessionManager?: SessionManager;
+		args?: string[]; scopedModels?: { model: typeof first }[]; projectTrusted?: boolean;
+		thinkingLevel?: "low" | "high";
+	} = {}) {
+		const settingsManager = SettingsManager.create(root, agentDir, { projectTrusted: options.projectTrusted ?? false });
 		const loader = new DefaultResourceLoader({
 			cwd: root, agentDir, settingsManager,
 			noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
 			systemPrompt: "Synthetic test persona.", appendSystemPrompt: [],
-			extensionFactories: [(pi) => rememberModelSelection(pi, agentDir)],
+			extensionFactories: [(pi) => jeonseoguModels(pi, {
+				agentDir, allowNetwork: false,
+				args: options.args ?? (options.model ? ["--model", options.model.id] : []),
+			})],
 		});
 		await loader.reload();
 		const { session } = await createAgentSession({
 			cwd: root, agentDir, modelRuntime, settingsManager, resourceLoader: loader,
-			model: options.model, noTools: "all", sessionManager: options.sessionManager ?? SessionManager.inMemory(root),
+			model: options.model, scopedModels: options.scopedModels, thinkingLevel: options.thinkingLevel,
+			noTools: "all", sessionManager: options.sessionManager ?? SessionManager.inMemory(root),
 		});
 		sessions.push(session);
 		await session.bindExtensions({
@@ -51,11 +59,134 @@ async function fixture() {
 		return session;
 	}
 	return {
-		root, agentDir, settingsPath, first, second, warnings, open,
+		root, agentDir, settingsPath, first, second, modelRuntime, warnings, open,
 		settings: () => SettingsManager.create(root, agentDir, { projectTrusted: false }),
 		close: () => { for (const session of sessions) session.dispose(); rmSync(root, { recursive: true, force: true }); },
 	};
 }
+
+test("first startup picks and saves the latest available generation", async () => {
+	const f = await fixture();
+	try {
+		assert.equal((await f.open()).model?.id, f.second.id);
+		assert.equal(f.settings().getDefaultModel(), f.second.id);
+		assert.equal(f.settings().getDefaultProvider(), f.second.provider);
+		assert.equal((await f.open()).model?.id, f.second.id);
+	} finally { f.close(); }
+});
+
+test("an older saved choice wins over a newer model on subsequent startup", async () => {
+	const f = await fixture();
+	try {
+		const session = await f.open();
+		await session.setModel(f.first);
+		assert.equal((await f.open()).model?.id, f.first.id);
+	} finally { f.close(); }
+});
+
+test("first startup refreshes the provider catalog before choosing its latest model", async () => {
+	const f = await fixture();
+	try {
+		const modelsPath = join(f.agentDir, "models.json");
+		const catalog = JSON.parse(readFileSync(modelsPath, "utf8"));
+		catalog.providers["jeonseogu-test"].models.push({ id: "gpt-7-sol" });
+		writeFileSync(modelsPath, JSON.stringify(catalog));
+		assert.equal((await f.open()).model?.id, "gpt-7-sol");
+		assert.equal(f.settings().getDefaultModel(), "gpt-7-sol");
+	} finally { f.close(); }
+});
+
+test("trusted project model defaults are not replaced or copied to global settings", async () => {
+	const f = await fixture();
+	try {
+		mkdirSync(join(f.root, ".pi"));
+		writeFileSync(join(f.root, ".pi", "settings.json"), JSON.stringify({
+			defaultProvider: f.first.provider, defaultModel: f.first.id,
+		}));
+		assert.equal((await f.open({ projectTrusted: true })).model?.id, f.first.id);
+		assert.equal(f.settings().getDefaultModel(), undefined);
+	} finally { f.close(); }
+});
+
+test("startup without any available authenticated models leaves defaults unset", async (t) => {
+	const f = await fixture();
+	try {
+		t.mock.method(f.modelRuntime, "getAvailableSnapshot", () => []);
+		t.mock.method(f.modelRuntime, "hasConfiguredAuth", () => false);
+		// pi's underlying agent exposes its "unknown" placeholder without auth.
+		assert.equal((await f.open()).model?.id, "unknown");
+		assert.equal(f.settings().getDefaultModel(), undefined);
+		assert.deepEqual(f.warnings, []);
+	} finally { f.close(); }
+});
+
+test("failed authentication during initial selection retains the working startup model", async (t) => {
+	const f = await fixture();
+	try {
+		t.mock.method(f.modelRuntime, "checkAuth", async () => undefined);
+		assert.equal((await f.open()).model?.id, f.first.id);
+		assert.equal(f.settings().getDefaultModel(), undefined);
+		assert.equal(f.warnings.length, 1);
+	} finally { f.close(); }
+});
+
+test("initial selection respects CLI model/session flags and scoped models", async () => {
+	const f = await fixture();
+	try {
+		for (const args of [
+			["--model", f.first.id], ["--provider", f.first.provider], ["--models", f.first.id],
+			["-c"], ["--continue"], ["--resume"], ["--session", "synthetic.jsonl"], ["--fork", "synthetic.jsonl"],
+		]) {
+			assert.equal((await f.open({ model: f.first, args })).model?.id, f.first.id);
+			assert.equal(f.settings().getDefaultModel(), undefined);
+		}
+		assert.equal((await f.open({ scopedModels: [{ model: f.first }] })).model?.id, f.first.id);
+		assert.equal(f.settings().getDefaultModel(), undefined);
+	} finally { f.close(); }
+});
+
+test("initial selection preserves explicit thinking level without rewriting the saved level", async () => {
+	const f = await fixture();
+	try {
+		const session = await f.open({ args: ["--thinking", "low"], thinkingLevel: "low" });
+		assert.equal(session.model?.id, f.second.id);
+		assert.equal(session.thinkingLevel, "low");
+		assert.equal(f.settings().getDefaultThinkingLevel(), "high");
+	} finally { f.close(); }
+});
+
+test("a failed initial catalog refresh uses cached available models", async (t) => {
+	const f = await fixture();
+	try {
+		t.mock.method(f.modelRuntime, "refresh", async () => { throw new Error("offline"); });
+		assert.equal((await f.open()).model?.id, f.second.id);
+		assert.deepEqual(f.warnings, []);
+	} finally { f.close(); }
+});
+
+test("print and RPC startup do not auto-select or save a new default", async () => {
+	const f = await fixture();
+	try {
+		for (const mode of ["print", "rpc"] as const) {
+			assert.equal((await f.open({ model: f.first, args: [], mode })).model?.id, f.first.id);
+			assert.equal(f.settings().getDefaultModel(), undefined);
+		}
+	} finally { f.close(); }
+});
+
+test("latest generation comparison is numeric and stays within the available provider and family", () => {
+	const model = (id: string, provider = "test") => ({ id, provider });
+	const current = model("gpt-5.5");
+	assert.equal(latestAvailableModel(current, [model("gpt-5.9"), model("gpt-5.10")])?.id, "gpt-5.10");
+	assert.equal(latestAvailableModel(current, [current, model("gpt-6-astra"), model("gpt-99", "unavailable")])?.id, "gpt-6-astra");
+	assert.equal(latestAvailableModel(current, [model("gpt-5.5-20990101"), model("gpt-5.6")])?.id, "gpt-5.6");
+	assert.equal(latestAvailableModel(model("gpt-5.6-sol"), [model("gpt-6-astra"), model("gpt-6-sol")])?.id, "gpt-6-sol");
+	assert.equal(latestAvailableModel(model("claude-opus-4-6"), [model("claude-opus-4-8"), model("claude-sonnet-5")])?.id, "claude-opus-4-8");
+	assert.equal(latestAvailableModel(model("gemini-2.5-pro"), [model("gemini-3.1-pro-preview")])?.id, "gemini-3.1-pro-preview");
+	const custom = model("custom-405b");
+	assert.equal(latestAvailableModel(custom, [custom, model("custom-999b")]), custom);
+	assert.equal(latestAvailableModel(current, []), undefined);
+});
 
 test("ordinary model selection is restored in a new session without losing other settings", async () => {
 	const f = await fixture();
