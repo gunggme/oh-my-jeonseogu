@@ -37,7 +37,8 @@ AI 의견은 사람의 승인이나 필수 CI 검사를 대체하지 않는다.
 ## npm 최초 연결
 
 현재 패키지가 npm에 없으면 먼저 한 번의 인증된 최초 발행이 필요하다.
-아래 최초 발행은 패키지를 **공개**하므로 공개 준비가 끝난 뒤 진행한다.
+GitHub 저장소를 비공개로 유지한 채 npm 패키지를 **공개** 발행할 수 있다.
+아래 명령은 GitHub의 공개 설정을 변경하지 않는다.
 
 ```sh
 npm login
@@ -45,7 +46,10 @@ npm ci
 npm run check
 npm test
 npm run test:package
-npm publish --access public
+npm pack
+release_version=$(node -p 'JSON.parse(require("node:fs").readFileSync("package.json", "utf8")).version')
+npm publish "oh-my-jeonseogu-$release_version.tgz" --access public --ignore-scripts
+node scripts/verify-published.mjs "oh-my-jeonseogu-$release_version.tgz"
 ```
 
 패키지가 생성되면 npm 패키지 Settings의 **Trusted Publisher**를 등록한다:
@@ -66,17 +70,25 @@ npm trust github oh-my-jeonseogu --repo gunggme/oh-my-jeonseogu --file publish.y
 ```
 
 GitHub에는 npm 토큰을 저장하지 않는다. Node 24의 npm과 GitHub OIDC로 발행하고,
-공개 저장소에서 provenance를 첨부한다. 저장소가 비공개이거나 Actions variable
-`NPM_PUBLISH_ENABLED`가 `true`가 아니면 항상 dry-run만 수행한다.
+공개 저장소에서 provenance를 첨부한다. 비공개 저장소는 npm의 제한으로 provenance
+없이 발행하며, public 전환 후 발행되는 새 버전부터 자동으로 provenance를 첨부한다.
+기존 버전의 provenance는 소급해서 추가할 수 없다.
+Actions variable `NPM_PUBLISH_ENABLED`가 `true`가 아니면 dry-run만 수행한다.
+발행 직후에는 npm registry의 tarball SHA-512가 로컬 배포 파일과 일치하는지도 검사한다.
 
 ## 공개 전환과 활성화
 
-1. `CI`와 `npm publish` dry-run 성공을 확인한다.
+1. 비공개 상태에서 `CI`와 `npm publish` dry-run 성공을 확인한다.
 2. AI 리뷰를 사용하려면 별도로 활성화한 뒤 실제 PR의 댓글을 확인한다(선택).
-3. 공개할 코드·문서·이력 검토를 마친 뒤 저장소를 public으로 전환한다.
-4. 최초 npm 발행과 Trusted Publisher 등록을 완료한다.
-5. 아래 브랜치 보호를 적용하고 `NPM_PUBLISH_ENABLED=true`로 설정한다.
-6. 새 버전 PR을 병합한 뒤 npm에 업로드된 버전과 provenance를 확인한다.
+3. 최초 npm 발행과 Trusted Publisher 등록을 완료한다.
+4. `NPM_PUBLISH_ENABLED=true`로 설정하고 새 버전 PR로 실제 자동 발행을 확인한다.
+5. 공개할 코드·문서·이력 검토까지 마쳤으면 공개 전환 직전의 준비가 끝난 상태다.
+6. 이후 public으로 전환할 때 아래 브랜치 보호를 적용한다. 다음 새 버전에서 provenance를 확인한다.
+
+저장소 공개 변경은 파이프라인이나 아래 명령이 자동으로 수행하지 않는다.
+`docs/jeonseogu-style-research.md`와 `docs/jeonseogu-context-review-2026-09-23.md`에는
+Discord 대화 인용과 원문 링크가 있고 Git 이력에도 포함되어 있다. npm tarball에는
+이 조사 문서와 `eval/`을 포함하지 않는다. GitHub 공개 범위는 별도로 확인한다.
 
 현재 GitHub Free의 비공개 저장소에서는 브랜치 보호 API가 403을 반환한다.
 공개 전환 후 아래 명령으로 준비된 설정을 적용한다:
@@ -84,6 +96,11 @@ GitHub에는 npm 토큰을 저장하지 않는다. Node 24의 npm과 GitHub OIDC
 ```sh
 gh api --method PUT repos/gunggme/oh-my-jeonseogu/branches/master/protection \
   --input .github/branch-protection.json
+```
+
+배포 활성화는 저장소의 공개 여부와 별개로 최초 연결을 완료한 뒤 실행한다:
+
+```sh
 gh variable set NPM_PUBLISH_ENABLED --repo gunggme/oh-my-jeonseogu --body true
 ```
 

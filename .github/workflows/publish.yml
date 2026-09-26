@@ -49,14 +49,21 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: npm publish "oh-my-jeonseogu-$VERSION.tgz" --dry-run --ignore-scripts
       - name: Publish with npm trusted publishing
+        id: publish
         if: >-
           steps.release.outputs.publish == 'true' &&
           vars.NPM_PUBLISH_ENABLED == 'true' &&
-          !github.event.repository.private &&
           (github.event_name == 'push' || !inputs.dry_run)
         env:
           VERSION: ${{ steps.release.outputs.version }}
-        run: npm publish "oh-my-jeonseogu-$VERSION.tgz" --ignore-scripts --provenance --access public
+          # npm cannot attest private source repositories. Public releases require it.
+          NPM_CONFIG_PROVENANCE: ${{ !github.event.repository.private }}
+        run: npm publish "oh-my-jeonseogu-$VERSION.tgz" --ignore-scripts --access public
+      - name: Verify published package integrity
+        if: steps.publish.outcome == 'success'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: node scripts/verify-published.mjs "oh-my-jeonseogu-$VERSION.tgz"
       - name: Summarize release state
         env:
           VERSION: ${{ steps.release.outputs.version }}
@@ -64,6 +71,7 @@ jobs:
           ENABLED: ${{ vars.NPM_PUBLISH_ENABLED }}
           PRIVATE: ${{ github.event.repository.private }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          PUBLISH_RESULT: ${{ steps.publish.outcome }}
         run: |
           {
             echo "Version: $VERSION"
@@ -71,5 +79,7 @@ jobs:
             echo "Publishing enabled: ${ENABLED:-false}"
             echo "Repository private: $PRIVATE"
             echo "Explicit dry run: $DRY_RUN"
-            echo "Publication requires a public repository, NPM_PUBLISH_ENABLED=true, and npm trusted publishing."
+            echo "Publish step: $PUBLISH_RESULT"
+            echo "Publication requires NPM_PUBLISH_ENABLED=true and npm trusted publishing."
+            echo "Provenance is attached when the source repository is public."
           } >> "$GITHUB_STEP_SUMMARY"
