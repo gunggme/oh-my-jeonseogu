@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   prepare:
-    if: github.repository == 'gunggme/oh-my-jeonseogu' && github.ref == 'refs/heads/master'
+    if: vars.AI_REVIEW_ENABLED == 'true' && github.repository == 'gunggme/oh-my-jeonseogu' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:

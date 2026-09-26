@@ -5,7 +5,7 @@
 | 워크플로 | 실행 시점 | 동작 |
 | --- | --- | --- |
 | CI | `master` 대상 PR, 수동 실행, 배포 워크플로 호출 | Node 22.19.0 / 24에서 타입 검사, 테스트, tarball 설치 및 CLI 실행 |
-| AI review | PR 생성·갱신·재개·초안 해제, 수동 실행 | Codex가 변경 내용을 검토하고 PR 댓글 하나를 갱신 |
+| AI review (선택, 기본 비활성) | 활성화 후 PR 생성·갱신·재개·초안 해제, 수동 실행 | Codex가 변경 내용을 검토하고 PR 댓글 하나를 갱신 |
 | npm publish | `master` push, 수동 실행 | CI 통과 후 패키지 생성·dry-run, 조건 충족 시 새 버전 발행 |
 
 `CI`가 브랜치 보호에 등록할 최종 검사 이름이다. 모델 인증이 필요한
@@ -13,6 +13,9 @@
 외부 Actions는 commit SHA로 고정하고 Dependabot이 매주 갱신 PR을 만든다.
 
 ## AI 리뷰 활성화
+
+AI 리뷰는 현재 비활성 상태이며 공개 전환의 필수 조건이 아니다.
+필요할 때 Actions variable `AI_REVIEW_ENABLED=true`를 설정하고 아래 인증을 추가한다.
 
 저장소 **Settings → Secrets and variables → Actions**에 `OPENAI_API_KEY`를 추가한다.
 OpenAI API 사용 요금이 발생한다. 모델을 지정하려면 Actions variable
@@ -69,7 +72,7 @@ GitHub에는 npm 토큰을 저장하지 않는다. Node 24의 npm과 GitHub OIDC
 ## 공개 전환과 활성화
 
 1. `CI`와 `npm publish` dry-run 성공을 확인한다.
-2. `OPENAI_API_KEY`를 추가하고 실제 PR의 AI 리뷰 댓글을 확인한다.
+2. AI 리뷰를 사용하려면 별도로 활성화한 뒤 실제 PR의 댓글을 확인한다(선택).
 3. 공개할 코드·문서·이력 검토를 마친 뒤 저장소를 public으로 전환한다.
 4. 최초 npm 발행과 Trusted Publisher 등록을 완료한다.
 5. 아래 브랜치 보호를 적용하고 `NPM_PUBLISH_ENABLED=true`로 설정한다.
