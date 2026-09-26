@@ -80,6 +80,8 @@ GitHub에는 npm 토큰을 저장하지 않는다. Node 24의 npm과 GitHub OIDC
 기존 버전의 provenance는 소급해서 추가할 수 없다.
 Actions variable `NPM_PUBLISH_ENABLED`가 `true`가 아니면 dry-run만 수행한다.
 발행 직후에는 npm registry의 tarball SHA-512가 로컬 배포 파일과 일치하는지도 검사한다.
+npm이 발행 요청을 수락한 뒤에도 처리 중인 버전은 잠시 404로 조회될 수 있으므로,
+검증 단계는 최대 10분 동안 기다린다. 인증 오류나 파일 해시 불일치는 즉시 실패한다.
 
 ## 공개 전환과 활성화
 
