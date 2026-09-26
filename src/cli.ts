@@ -5,7 +5,8 @@ import { main, VERSION as PI_VERSION } from "@earendil-works/pi-coding-agent";
 import { mapArgs } from "./args.js";
 import { jeonseoguBanner } from "./banner.js";
 import { jeonseoguModels } from "./models.js";
-import { pkgVersion, shouldAutoUpdate, startAutoUpdate } from "./updater.js";
+import { runStartupUpdate, shouldPromptForUpdate } from "./startup-update.js";
+import { pkgVersion, shouldCheckForUpdates } from "./updater.js";
 
 // pi's main() configures its own HTTP dispatcher, proxy, and timeout settings.
 process.env.PI_CODING_AGENT = "true";
@@ -29,9 +30,12 @@ async function run(argv: string[]): Promise<void> {
 		args.push("--system-prompt", persona);
 	}
 	args.push(...mapped.rest);
-	if (shouldAutoUpdate(mapped.noUpdate)) {
-		// Background check; the banner extension reports the outcome in the TUI.
-		void startAutoUpdate(pkgVersion(), PI_VERSION);
+	if (shouldCheckForUpdates(mapped.noUpdate) && shouldPromptForUpdate(mapped.rest)) {
+		const outcome = await runStartupUpdate(pkgVersion(), PI_VERSION);
+		if (outcome !== "continue") {
+			process.exitCode = outcome === "updated" ? 0 : 1;
+			return;
+		}
 	}
 	await main(args, { extensionFactories: [jeonseoguBanner, (pi) => jeonseoguModels(pi, { args })] });
 }

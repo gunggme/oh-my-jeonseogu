@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { checkForUpdates, isNewer } from "../src/updater.js";
+import { checkForUpdates, dismissUpdate, isNewer, shouldCheckForUpdates } from "../src/updater.js";
 
 function isolatedCache(t: TestContext): string {
 	const dir = mkdtempSync(join(tmpdir(), "jeonseogu-update-test-"));
@@ -80,4 +80,55 @@ test("registry failures do not prevent startup or preserve legacy pi data as cur
 	assert.equal(JSON.parse(readFileSync(cache, "utf8")).piLatest, undefined);
 	assert.equal(await checkForUpdates("0.2.0", "0.87.1"), null);
 	assert.equal(fetchMock.mock.callCount(), 2);
+});
+
+test("dismissed versions stay hidden after cache expiry, but newer self or pi versions are shown", async (t) => {
+	const cache = isolatedCache(t);
+	let selfLatest = "0.3.0";
+	let piLatest = "0.88.0";
+	t.mock.method(globalThis, "fetch", async (url: string) => Response.json({
+		version: url.includes("oh-my-jeonseogu") ? selfLatest : piLatest,
+	}));
+	const info = await checkForUpdates("0.2.0", "0.87.1");
+	assert.ok(info);
+	assert.equal(dismissUpdate(info), true);
+	assert.equal(await checkForUpdates("0.2.0", "0.87.1"), null);
+	const expire = (): void => {
+		const data = JSON.parse(readFileSync(cache, "utf8"));
+		writeFileSync(cache, JSON.stringify({ ...data, checkedAt: Date.now() - 25 * 60 * 60 * 1000 }));
+	};
+	expire();
+	assert.equal(await checkForUpdates("0.2.0", "0.87.1"), null);
+	selfLatest = "0.3.1";
+	expire();
+	const nextSelf = await checkForUpdates("0.2.0", "0.87.1");
+	assert.equal(nextSelf?.self.latest, "0.3.1");
+	assert.ok(nextSelf);
+	dismissUpdate(nextSelf);
+	piLatest = "0.89.0";
+	expire();
+	assert.equal((await checkForUpdates("0.2.0", "0.87.1"))?.pi.latest, "0.89.0");
+});
+
+test("malformed cache and registry versions cannot reach the terminal prompt", async (t) => {
+	const cache = isolatedCache(t);
+	t.mock.method(globalThis, "fetch", async () => Response.json({ version: "9.0.0\u001b[2J" }));
+	for (const value of ["null", "{broken", JSON.stringify({ checkedAt: Date.now(), selfLatest: {}, piLatest: [] })]) {
+		writeFileSync(cache, value);
+		assert.equal(await checkForUpdates("0.2.0", "0.87.1"), null);
+	}
+});
+
+test("explicit opt-out and development checkouts disable checks", () => {
+	assert.equal(shouldCheckForUpdates(true), false);
+	const previous = process.env.JEONSEOGU_NO_UPDATE;
+	try {
+		process.env.JEONSEOGU_NO_UPDATE = "1";
+		assert.equal(shouldCheckForUpdates(false), false);
+		delete process.env.JEONSEOGU_NO_UPDATE;
+		assert.equal(shouldCheckForUpdates(false), false); // This repository has .git.
+	} finally {
+		if (previous === undefined) delete process.env.JEONSEOGU_NO_UPDATE;
+		else process.env.JEONSEOGU_NO_UPDATE = previous;
+	}
 });

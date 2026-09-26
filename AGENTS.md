@@ -31,8 +31,9 @@
 | --- | --- |
 | `src/cli.ts` | 페르소나 로딩과 pi `main()` 호출 |
 | `src/args.ts` | 전용 인자 소비, pi 인자 전달, 기본 격리 설정 |
-| `src/banner.ts` | 대화형 TUI 헤더와 업데이트 알림 |
-| `src/updater.ts` | 자동 업데이트 조건, 버전 확인과 백그라운드 실행 |
+| `src/banner.ts` | 대화형 TUI 헤더 |
+| `src/startup-update.ts` | 시작 전 업데이트 선택과 설치 후 종료 안내 |
+| `src/updater.ts` | 업데이트 조건, 버전 확인·알림 숨김 캐시와 전역 설치 |
 | `personas/jeonseogu.md` | 기본 캐릭터의 말투와 대화 지침 |
 | `test/*.test.ts` | 인자, 격리, 업데이터, 릴리스 및 배포 검증 테스트 |
 | `scripts/check-package.mjs` | tarball 구성, 별도 설치와 CLI 진입점 검증 |
