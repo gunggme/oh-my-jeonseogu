@@ -81,6 +81,9 @@ pi는 모델 카탈로그도 자동으로 갱신한다. `/model`에서 `astra`�
 
 ## 개발
 
+수정 및 PR 작성 규칙은 [AGENTS.md](AGENTS.md)를 따른다.
+모든 PR에는 관련 이슈가 필요하며, 기존 이슈가 없으면 PR 생성 전에 먼저 만든다.
+
 ```sh
 npm run dev      # tsx로 바로 실행
 npm run check    # tsc --noEmit
