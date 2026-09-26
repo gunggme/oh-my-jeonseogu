@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { main, VERSION as PI_VERSION } from "@earendil-works/pi-coding-agent";
 import { mapArgs } from "./args.js";
 import { jeonseoguBanner } from "./banner.js";
+import { rememberModelSelection } from "./models.js";
 import { pkgVersion, shouldAutoUpdate, startAutoUpdate } from "./updater.js";
 
 // pi's main() configures its own HTTP dispatcher, proxy, and timeout settings.
@@ -32,7 +33,7 @@ async function run(argv: string[]): Promise<void> {
 		// Background check; the banner extension reports the outcome in the TUI.
 		void startAutoUpdate(pkgVersion(), PI_VERSION);
 	}
-	await main(args, { extensionFactories: [jeonseoguBanner] });
+	await main(args, { extensionFactories: [jeonseoguBanner, rememberModelSelection] });
 }
 
 run(process.argv.slice(2)).catch((e) => {
