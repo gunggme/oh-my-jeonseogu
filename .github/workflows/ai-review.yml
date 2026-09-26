@@ -1,0 +1,151 @@
+name: AI review
+
+on:
+  # Only trusted base-branch code is checked out. PR changes are read as diff text.
+  pull_request_target:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Open PR number to review (including external contributions)
+        required: true
+        type: number
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    if: vars.AI_REVIEW_ENABLED == 'true' && github.repository == 'gunggme/oh-my-jeonseogu' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ready: ${{ steps.pr.outputs.ready }}
+      number: ${{ steps.pr.outputs.number }}
+      base: ${{ steps.pr.outputs.base }}
+      head: ${{ steps.pr.outputs.head }}
+    steps:
+      - name: Check configuration and trusted initiator
+        id: pr
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        with:
+          script: |
+            const number = Number(process.env.PR_NUMBER);
+            if (!Number.isSafeInteger(number) || number <= 0) throw new Error('Invalid PR number');
+            const repo = context.repo;
+            const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: number });
+            const { data: access } = await github.rest.repos.getCollaboratorPermissionLevel({
+              ...repo, username: context.actor,
+            });
+            let reason = '';
+            if (pr.base.ref !== 'master' || pr.state !== 'open' || pr.draft) {
+              reason = 'Only open, ready PRs targeting master are reviewed.';
+            } else if (!['admin', 'maintain', 'write'].includes(access.permission)) {
+              reason = 'A maintainer must run AI review manually for external contributions.';
+            } else if (!process.env.OPENAI_API_KEY) {
+              reason = 'Setup pending: add the OPENAI_API_KEY Actions secret to enable AI review.';
+            }
+            core.setOutput('ready', reason === '');
+            core.setOutput('number', number);
+            core.setOutput('base', pr.base.sha);
+            core.setOutput('head', pr.head.sha);
+            if (reason) {
+              core.warning(reason);
+              await core.summary.addRaw(reason).write();
+            }
+
+  review:
+    needs: prepare
+    if: needs.prepare.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      feedback: ${{ steps.codex.outputs.final-message }}
+    steps:
+      - name: Check out trusted base only
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.prepare.outputs.base }}
+          persist-credentials: false
+      - name: Read PR diff as data
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PR_NUMBER: ${{ needs.prepare.outputs.number }}
+          BASE_SHA: ${{ needs.prepare.outputs.base }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head }}
+        with:
+          script: |
+            const { writeFileSync } = require('node:fs');
+            const args = { ...context.repo, pull_number: Number(process.env.PR_NUMBER) };
+            const { data: pr } = await github.rest.pulls.get(args);
+            if (pr.head.sha !== process.env.HEAD_SHA) throw new Error('PR changed; use the newer run');
+            const { data: diff } = await github.rest.repos.compareCommitsWithBasehead({
+              ...context.repo,
+              basehead: `${process.env.BASE_SHA}...${process.env.HEAD_SHA}`,
+              mediaType: { format: 'diff' },
+            });
+            if (typeof diff !== 'string' || Buffer.byteLength(diff) > 250_000) {
+              throw new Error('Diff is too large for automatic review; split the PR or review it manually');
+            }
+            writeFileSync('pr-review.diff', diff);
+      # No npm install, builds, tests, or scripts from the PR run in this job.
+      # Keep Codex last; feedback is posted with a separate job/token.
+      - name: Review with Codex
+        id: codex
+        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e # v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":read-only"
+          safety-strategy: drop-sudo
+          model: ${{ vars.AI_REVIEW_MODEL }}
+          prompt-file: .github/prompts/pr-review.md
+
+  feedback:
+    needs: [prepare, review]
+    if: needs.review.outputs.feedback != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Update one review comment for the current commit
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PR_NUMBER: ${{ needs.prepare.outputs.number }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head }}
+          FEEDBACK: ${{ needs.review.outputs.feedback }}
+        with:
+          script: |
+            const repo = context.repo;
+            const number = Number(process.env.PR_NUMBER);
+            const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: number });
+            if (pr.state !== 'open' || pr.head.sha !== process.env.HEAD_SHA) {
+              core.notice('Discarded feedback for an outdated or closed PR.');
+              return;
+            }
+            const marker = '<!-- oh-my-jeonseogu-ai-review -->';
+            const feedback = process.env.FEEDBACK.slice(0, 55000);
+            const body = `${marker}\n### AI 코드 리뷰\n검토 커밋: ${process.env.HEAD_SHA}\n\n${feedback}\n\n_AI 리뷰는 참고 의견이며 유지관리자의 승인을 대신하지 않습니다._`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...repo, issue_number: number, per_page: 100,
+            });
+            const previous = comments.find(c => c.user?.login === 'github-actions[bot]' && c.body?.startsWith(marker));
+            if (previous) {
+              await github.rest.issues.updateComment({ ...repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...repo, issue_number: number, body });
+            }
