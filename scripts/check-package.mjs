@@ -31,9 +31,11 @@ try {
   const installed = join(root, "node_modules", pkg.name);
   const manifest = JSON.parse(readFileSync(join(installed, "package.json"), "utf8"));
   assert.equal(manifest.version, pkg.version);
-  for (const [name, entry] of Object.entries(manifest.bin)) {
-    const output = execFileSync(process.execPath, [join(installed, entry), "--help"], {
+  for (const name of Object.keys(manifest.bin)) {
+    const executable = join(root, "node_modules", ".bin", name + (process.platform === "win32" ? ".cmd" : ""));
+    const output = execFileSync(executable, ["--help"], {
       cwd: root, encoding: "utf8", timeout: 30_000,
+      shell: process.platform === "win32",
       env: { ...process.env, JEONSEOGU_NO_UPDATE: "1", PI_CODING_AGENT_DIR: join(root, "agent") },
     });
     assert.match(output, /usage:/i, `${name} must start without API credentials`);
