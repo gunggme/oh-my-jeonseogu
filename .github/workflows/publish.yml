@@ -45,6 +45,7 @@ jobs:
       - name: Build release archive
         run: npm pack
       - name: Verify publish payload without uploading
+        if: steps.release.outputs.publish == 'true'
         env:
           VERSION: ${{ steps.release.outputs.version }}
         run: npm publish "oh-my-jeonseogu-$VERSION.tgz" --dry-run --ignore-scripts
